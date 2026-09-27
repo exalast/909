@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>909 — Servidor de Discord</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>❄️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-deep:#060912;
+    --navy:#0b1120;
+    --ice:#a9d8ff;
+    --ice-dim:#5f7fa8;
+    --frost:#f2f7ff;
+    --violet:#7c6cff;
+    --line: rgba(169,216,255,0.14);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--navy-deep);
+    color:var(--frost);
+    font-family:'Inter',system-ui,sans-serif;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;}
+
+  canvas#snow{
+    position:fixed; inset:0; width:100%; height:100%;
+    pointer-events:none; z-index:5;
+  }
+
+  #bg-image{
+    position:fixed; inset:0; z-index:0;
+    background-size:cover;
+    background-position:center;
+    opacity:0;
+    transition:opacity .6s ease;
+  }
+  #bg-image.active{opacity:1;}
+
+  .bg-overlay{
+    position:fixed; inset:0; z-index:1;
+    background:
+      radial-gradient(600px 400px at 50% -10%, rgba(124,108,255,0.20), transparent 60%),
+      linear-gradient(to bottom, rgba(6,9,18,0.55), rgba(6,9,18,0.85));
+  }
+  body:not(.has-bg) .bg-overlay{
+    background:
+      radial-gradient(600px 400px at 50% -10%, rgba(124,108,255,0.20), transparent 60%),
+      radial-gradient(800px 500px at 90% 20%, rgba(95,127,168,0.14), transparent 60%),
+      var(--navy-deep);
+  }
+
+  header{
+    position:sticky; top:0; z-index:20;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:20px clamp(20px,6vw,64px);
+    background:linear-gradient(to bottom, rgba(6,9,18,0.9), rgba(6,9,18,0));
+    backdrop-filter:blur(6px);
+  }
+  .brand{ font-family:'Anton',sans-serif; font-size:22px; color:var(--frost); display:flex; align-items:baseline; gap:8px;}
+  .brand span{color:var(--ice);}
+  nav{display:flex; gap:28px; font-size:14px; font-weight:500;}
+  nav a{text-decoration:none; color:var(--ice-dim); transition:color .2s;}
+  nav a:hover{color:var(--frost);}
+  .nav-cta{ background:var(--violet); color:#fff !important; padding:9px 18px; border-radius:8px; font-weight:600;}
+  .nav-cta:hover{background:#6a5aff;}
+
+  main{position:relative; z-index:10;}
+  section{ position:relative; z-index:10; padding:clamp(60px,10vw,140px) clamp(20px,6vw,64px); max-width:1100px; margin:0 auto;}
+
+  .hero{ min-height:88vh; display:flex; flex-direction:column; justify-content:center; padding-top:120px; padding-bottom:80px;}
+  .hero-eyebrow{ color:var(--ice); font-size:14px; font-weight:600; margin-bottom:18px;}
+  .hero h1{
+    font-family:'Anton',sans-serif; font-size:clamp(90px,18vw,220px); line-height:0.85; margin:0;
+    color:var(--frost); letter-spacing:2px; text-shadow:0 0 60px rgba(169,216,255,0.25);
+  }
+  .hero p.sub{ max-width:520px; font-size:clamp(17px,2vw,20px); color:#c7d6ec; line-height:1.6; margin:28px 0 36px;}
+  .hero-actions{display:flex; gap:16px; flex-wrap:wrap;}
+  .btn-primary{
+    background:var(--violet); color:#fff; text-decoration:none; padding:15px 28px; border-radius:10px;
+    font-weight:600; font-size:15px; box-shadow:0 8px 30px rgba(124,108,255,0.35);
+    transition:transform .2s, box-shadow .2s; display:inline-block;
+  }
+  .btn-primary:hover{transform:translateY(-2px); box-shadow:0 12px 34px rgba(124,108,255,0.45);}
+  .btn-ghost{
+    border:1px solid var(--line); color:var(--frost); text-decoration:none; padding:15px 28px;
+    border-radius:10px; font-weight:600; font-size:15px; transition:border-color .2s, background .2s;
+  }
+  .btn-ghost:hover{border-color:var(--ice-dim); background:rgba(169,216,255,0.06);}
+
+  .stats{display:flex; gap:clamp(28px,6vw,64px); margin-top:52px; flex-wrap:wrap;}
+  .stat b{display:block; font-family:'Anton',sans-serif; font-size:36px; color:var(--ice);}
+  .stat span{font-size:13px; color:var(--ice-dim);}
+
+  .divider{height:1px; background:var(--line); max-width:1100px; margin:0 auto;}
+  .section-label{font-size:13px; font-weight:600; color:var(--ice); margin-bottom:10px;}
+  h2{font-family:'Anton',sans-serif; font-size:clamp(32px,5vw,52px); margin:0 0 20px;}
+  .lead{max-width:640px; color:#c7d6ec; font-size:17px; line-height:1.7;}
+
+  .channels{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:1px;
+    background:var(--line); border:1px solid var(--line); border-radius:14px; overflow:hidden; margin-top:44px;
+  }
+  .channel{background:rgba(11,17,32,0.9); padding:28px 26px;}
+  .channel .tag{font-size:12px; color:var(--ice-dim); margin-bottom:10px;}
+  .channel h3{margin:0 0 10px; font-size:18px;}
+  .channel p{margin:0; font-size:14px; color:#a9bcd6; line-height:1.6;}
+
+  .rules{margin-top:44px;}
+  .rule{display:flex; gap:20px; padding:22px 0; border-top:1px solid var(--line);}
+  .rule:last-child{border-bottom:1px solid var(--line);}
+  .rule .n{font-family:'Anton',sans-serif; font-size:22px; color:var(--ice-dim); min-width:40px;}
+  .rule h4{margin:0 0 6px; font-size:16px;}
+  .rule p{margin:0; color:#a9bcd6; font-size:14px; line-height:1.6; max-width:560px;}
+
+  .join{text-align:center; padding-top:100px; padding-bottom:120px;}
+  .join h2{font-size:clamp(38px,7vw,72px);}
+  .join .lead{margin:0 auto 34px;}
+  .join .btn-primary{font-size:17px; padding:18px 36px;}
+
+  footer{
+    position:relative; z-index:10; border-top:1px solid var(--line);
+    padding:32px clamp(20px,6vw,64px); display:flex; justify-content:space-between;
+    align-items:center; flex-wrap:wrap; gap:12px; font-size:13px; color:var(--ice-dim);
+  }
+  footer a{color:var(--ice-dim); text-decoration:none;}
+  footer a:hover{color:var(--frost);}
+
+  @media (max-width:640px){ header{padding:16px 20px;} nav{display:none;} }
+  @media (prefers-reduced-motion: reduce){ canvas#snow{display:none;} }
+</style>
+</head>
+<body>
+
+<div id="bg-image"></div>
+<div class="bg-overlay"></div>
+<canvas id="snow"></canvas>
+
+<header>
+  <div class="brand">909<span>.gg</span></div>
+  <nav>
+    <a href="#sobre">Sobre</a>
+    <a href="#canales">Canales</a>
+    <a href="#normas">Normas</a>
+    <a class="nav-cta" href="#unirse">Unirme</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="hero-eyebrow">SERVIDOR DE DISCORD</div>
+    <h1 id="hero-title">909</h1>
+    <p class="sub" id="hero-subtitle">Un lugar para hablar, jugar y pasar el rato cuando afuera está helando.</p>
+    <div class="hero-actions">
+      <a class="btn-primary invite-link" href="#unirse">Unirme al servidor</a>
+      <a class="btn-ghost" href="#sobre">Ver de qué se trata</a>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>24/7</b><span>Servidor activo</span></div>
+      <div class="stat"><b>+10</b><span>Canales temáticos</span></div>
+      <div class="stat"><b>0</b><span>Reglas complicadas</span></div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section id="sobre">
+    <div class="section-label">SOBRE 909</div>
+    <h2>Nació una noche cualquiera,<br>se quedó para siempre.</h2>
+    <p class="lead">909 es un servidor de Discord hecho para juntar gente que quiere hablar de lo que sea sin la presión de una comunidad gigante. Sin bots invasivos, sin jerarquías raras: solo canales bien organizados y gente que realmente está ahí.</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <section id="canales">
+    <div class="section-label">POR DENTRO</div>
+    <h2>Los canales</h2>
+    <p class="lead">Cada canal tiene un propósito claro para que nunca te preguntes dónde escribir.</p>
+    <div class="channels">
+      <div class="channel"><div class="tag">#general</div><h3>La sala principal</h3><p>Donde pasa todo. Charla libre, memes y el pulso del servidor en tiempo real.</p></div>
+      <div class="channel"><div class="tag">#juegos</div><h3>Squad para jugar</h3><p>Arma partidas, comparte clips y encuentra gente para tu juego del momento.</p></div>
+      <div class="channel"><div class="tag">#música</div><h3>Lo que estás escuchando</h3><p>Recomendaciones, playlists y descubrimientos de la semana.</p></div>
+      <div class="channel"><div class="tag">#voz</div><h3>Canales de voz</h3><p>Salas abiertas para hablar, jugar o simplemente tener compañía de fondo.</p></div>
+      <div class="channel"><div class="tag">#anuncios</div><h3>Novedades del server</h3><p>Cambios, eventos y todo lo importante, sin ruido de por medio.</p></div>
+      <div class="channel"><div class="tag">#soporte</div><h3>¿Algún problema?</h3><p>Escríbenos aquí y el staff te responde apenas puede.</p></div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section id="normas">
+    <div class="section-label">ANTES DE ENTRAR</div>
+    <h2>Cuatro normas, nada más</h2>
+    <div class="rules">
+      <div class="rule"><div class="n">01</div><div><h4>Respeto ante todo</h4><p>Discutir está bien, faltar el respeto no. Trata a los demás como quieres que te traten.</p></div></div>
+      <div class="rule"><div class="n">02</div><div><h4>Nada de spam</h4><p>Publicidad, invitaciones a otros servidores o mensajes repetidos se eliminan sin aviso.</p></div></div>
+      <div class="rule"><div class="n">03</div><div><h4>Contenido apto para todos</h4><p>Nada de NSFW, contenido gráfico o material ilegal en ningún canal.</p></div></div>
+      <div class="rule"><div class="n">04</div><div><h4>El staff tiene la última palabra</h4><p>Ante cualquier duda o conflicto, el equipo de moderación decide.</p></div></div>
+    </div>
+  </section>
+
+  <section class="join" id="unirse">
+    <div class="section-label">ÚLTIMO PASO</div>
+    <h2>Entra al 909</h2>
+    <p class="lead">Un clic y ya estás adentro. Nieva afuera, pero aquí siempre hay lugar junto al fuego.</p>
+    <a class="btn-primary invite-link" href="#">Unirme en Discord</a>
+  </section>
+</main>
+
+<footer>
+  <div>909 — servidor de Discord</div>
+  <a href="/admin">Admin</a>
+</footer>
+
+<script>
+  // ---- Cargar configuración dinámica desde la API ----
+  let snowEnabledSetting = true;
+
+  fetch('/api/settings')
+    .then(r => r.json())
+    .then(cfg => {
+      document.getElementById('hero-title').textContent = cfg.heroTitle || '909';
+      document.getElementById('hero-subtitle').textContent = cfg.heroSubtitle || '';
+      document.querySelectorAll('.invite-link').forEach(el => {
+        el.href = cfg.inviteLink || '#';
+      });
+      if (cfg.backgroundImage) {
+        const bg = document.getElementById('bg-image');
+        bg.style.backgroundImage = `url("${cfg.backgroundImage}")`;
+        bg.classList.add('active');
+        document.body.classList.add('has-bg');
+      }
+      snowEnabledSetting = cfg.snowEnabled !== false;
+      initSnow(snowEnabledSetting);
+    })
+    .catch(() => initSnow(true));
+
+  // ---- Efecto de nieve en canvas ----
+  function initSnow(enabled){
+    const canvas = document.getElementById('snow');
+    if (!enabled) { canvas.style.display = 'none'; return; }
+    const ctx = canvas.getContext('2d');
+    let w, h;
+
+    function resize(){ w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resize);
+    resize();
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const count = reduceMotion ? 0 : (window.innerWidth < 700 ? 70 : 140);
+
+    const flakes = Array.from({length: count}, () => ({
+      x: Math.random()*w, y: Math.random()*h,
+      r: Math.random()*2.6 + 1, speed: Math.random()*1 + 0.4,
+      drift: Math.random()*1 - 0.5, wobble: Math.random()*Math.PI*2,
+      wobbleSpeed: Math.random()*0.02 + 0.005, opacity: Math.random()*0.5 + 0.4
+    }));
+
+    function draw(){
+      ctx.clearRect(0,0,w,h);
+      ctx.fillStyle = '#f2f7ff';
+      for (const f of flakes){
+        f.wobble += f.wobbleSpeed;
+        f.x += f.drift + Math.sin(f.wobble)*0.4;
+        f.y += f.speed;
+        if (f.y > h + 5){ f.y = -5; f.x = Math.random()*w; }
+        if (f.x > w + 5) f.x = -5;
+        if (f.x < -5) f.x = w + 5;
+        ctx.globalAlpha = f.opacity;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      if (!reduceMotion) requestAnimationFrame(draw);
+    }
+    draw();
+  }
+</script>
+
+</body>
+</html>
